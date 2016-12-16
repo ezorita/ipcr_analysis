@@ -261,7 +261,11 @@ int main(int argc, char *argv[])
       fprintf(stderr, "error while opening: %s.\n",db_path);
       exit(1);
    }
-  
+   
+   // Write RE seq and cut sites.
+   write(dbfd, re_seq, strlen(re_seq)+1);
+   write(dbfd, &cut_fw, sizeof(int));
+   write(dbfd, &cut_rv, sizeof(int));
    // Write number of chromosomes.
    write(dbfd, &(chr_stack->pos), sizeof(int));
    // Digest genome.
@@ -273,9 +277,8 @@ int main(int argc, char *argv[])
       re_sites->pos = 0;
       fprintf(stderr,"digesting %s...",ref->seqname);
       digest_sequence(ref, re_seq, &re_sites);
-      fprintf(stderr,"done\nfirst digestion site: %d\n",(re_sites->pos ? re_sites->val[0] : -1));
       // Write to database. (use low-level write instead of fprint)
-      fprintf(stderr,"write digestion...");
+      fprintf(stderr,"done\nwrite digestion...");
       // 1. Write chromosome name.
       write(dbfd, ref->seqname, strlen(ref->seqname)+1);
       // 2. Write RE site count.
@@ -284,7 +287,7 @@ int main(int argc, char *argv[])
       size_t offset = 0;
       ssize_t b;
       while ((b = write(dbfd, ((char *)&(re_sites->val))+offset, (re_sites->pos*sizeof(int))-offset)) > 0) offset += b;
-      fprintf(stderr,"%ld/%ld bytes written\n",offset,re_sites->pos*sizeof(int));
+      fprintf(stderr,"%ld/%ld bytes written (%d sites)\n",offset,re_sites->pos*sizeof(int), re_sites->pos);
    }
 
    // Close files and free.
@@ -308,6 +311,7 @@ digest_sequence
 {
    // Find pattern.
    int pattlen = strlen(pattern);
+   stack_push(stack,0);
    for (int i = 0; i < ref->seqlen; i++) {
       int j = 0;
       while (j <= pattlen && (dna_nt[ref->seq[i + j]] & re_nt[pattern[j++]]));
@@ -315,7 +319,7 @@ digest_sequence
          stack_push(stack, i);
       }
    }
-   
+   stack_push(stack,ref->seqlen-1);
 }
 
 stack_t *
